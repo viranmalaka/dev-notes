@@ -121,3 +121,5 @@
     - fallback the values if the variable is only when `null` or `undefined`. this is not work for empty string or 0.
         - `const data = input || 'default';`
         - `const data = input ?? 'default';`
+
+## Generics
