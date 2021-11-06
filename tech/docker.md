@@ -145,7 +145,7 @@ COPY ./default.conf /etc/nginx/conf.d/default.conf
 ```nginx
 # nginx/default.conf file
 
-upstream client {
+upstream client {                                   # define upstreams servers
   server client:3000;
 }
 
@@ -153,23 +153,23 @@ upstream api {
   server api:5000;
 }
 
-server {
+server {                                             # define main server
   listen 80;
 
-  location / {
+  location / {                                       # redirect all the urls to client first
     proxy_pass http://client;
   }
 
-  location /sockjs-node {
+  location /sockjs-node {                            # this will need for react development HRM
     proxy_pass http://client;
     proxy_http_version 1.1;
     proxy_set_header Upgrade $http_upgrade;
     proxy_set_header Connection "Upgrade";
   }
 
-  location /api {
-    rewrite /api/(.*) /$1 break;
-    proxy_pass http://api;
+  location /api {                                    # If the url contains /api, redirect it to api service
+    rewrite /api/(.*) /$1 break;                     # this line will remove the /api part from the url and send only the rest
+    proxy_pass http://api;                           #   to the node service. eg: /api/version -> /version
   }
 }
 ```
