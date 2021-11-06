@@ -121,3 +121,112 @@ RUN yarn run build
 FROM nginx
 COPY --from=builder /app/build /usr/share/nginx/html
 ```
+
+---
+## Multiple Container Dev Environment
+- setup react client, node expressjs server, worker node for doing heavy calculation
+- dbs are redis and postgress
+- expose all the service from one nginx port with easy dev setup
+
+```
+# client Dockerfile.dev. server and worker will similar to that except paths
+FROM node:alpine
+WORKDIR '/app'
+COPY ./package.json ./
+RUN npm install
+COPY . .
+CMD ["npm", "run", "start"]
+
+# nginx/Dockerfile.dev
+FROM nginx
+COPY ./default.conf /etc/nginx/conf.d/default.conf
+```
+
+```nginx
+# nginx/default.conf file
+
+upstream client {
+  server client:3000;
+}
+
+upstream api {
+  server api:5000;
+}
+
+server {
+  listen 80;
+
+  location / {
+    proxy_pass http://client;
+  }
+
+  location /sockjs-node {
+    proxy_pass http://client;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";
+  }
+
+  location /api {
+    rewrite /api/(.*) /$1 break;
+    proxy_pass http://api;
+  }
+}
+```
+
+```yaml
+# this is docker-compose.yaml file in the root dir
+version: "3"
+services:
+  postgres:
+    image: "postgres:10"
+    environment:
+      POSTGRES_PASSWORD: "example"  # default password is must to start the server
+  redis:
+    image: "redis:latest"           # just setup the redis instance
+  api:
+    build:
+      dockerfile: Dockerfile.dev    
+      context: ./server             # api service is based on the Dockerfile which is in the /server dir
+    volumes:
+      - /app/node_modules           # ignore mapping node_modules from the volumes
+      - ./server:/app               # use the current directory from the container to take the latest update when coding
+    environment:                    # setting the envs
+      REDIS_HOST: "redis"
+      REDIS_PORT: 6379
+      PGUSER: "postgres"
+      PGHOST: "postgres"
+      PGDATABASE: "postgres"
+      PGPASSWORD: "example"
+      PGPOST: 5432
+  client:
+    stdin_open: true                # react client will need this to keep the server up
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./client
+    volumes:
+      - /app/node_modules
+      - ./client:/app
+  worker:
+    stdin_open: true
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./worker
+    volumes:
+      - /app/node_modules
+      - ./worker:/app
+    environment:
+      REDIS_HOST: "redis"
+      REDIS_PORT: 6379
+  nginx:
+    restart: always                 # set restart policies to keep the nginx server up always
+    build:
+      dockerfile: Dockerfile.dev    
+      context: ./nginx
+    ports:                          # this port will be open to access the full application
+      - "3000:80"
+    depends_on:
+      - api
+      - client
+
+```
