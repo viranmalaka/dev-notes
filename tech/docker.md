@@ -25,4 +25,98 @@ eg:
 ---
 - listdown all the running contains
   - `docker ps`
+- `docker create / docker start return` 
+  - docker create returns id of the new container
+  - `-a` return the container output
+  - set the default command 
+- `docker system prune`
+  - delete all the docker containers (clean the space)
+- `docker log <id>`
+  - get the log from the container
+- `docker stop <id>`
+  - use `SIGTERM`, the container can do some cleanup things and stop the process properly. If the process does not respond to that signal, the docer will kill the container after waiting 10s.
+- `dokcer kill <id>`
+  - use `SIGKILL`, the container have to shut id down immediately
+- `docker exec -it <id> <cmd>`
+  - execute another command on the running container instead of default cmd.
+  - `-i` enabled the STDN and STDOUT channel,
+  - `-t` enabled the properly formatted input output from the terminal.
+> every process running in Linux env has 3 main communcation channels. they are `STDIN`, `STDOUT` and `STDERR`
+- `docker exec -it <id> sh`
+  - shell access to the container
+- `docker run -it <image-name>`
 
+---
+## Create Dokcer Images
+- `Dockerfile`
+  - `FROM` - set the base image
+  - `RUN` - execute some command when creating the image
+  - `CMD` - command to run when the container is starting.
+
+- Docker image creation background
+  - for each command step, docker creates a brand new container with the previous output and execute the given command, after that command is over, it saves that temp container file system as snapshot. 
+  - the next command will be used the filesystem that has output by it’s previous step.
+  - Docker users cache technique to speedup the image building.
+    - docker will only execute the command that are affected by the changed. the first steps are taken from the cache.
+- tagging and image name
+  - `-t` to tag the building image
+  - convention: `<your docker id>/<project>:<version>`
+  - Note: image tag is the version of the image.
+- Generate an image from a container (don’t use this in general)
+  - startup a docker image `docker run alpine -it sh`
+  - find the id of above container by `docker ps`
+  - commit it
+    - docker commit -c `CMD [“redis-server”] <docker id>`
+- Port Forwarding
+  - `-p 80:80`
+
+- Docker Compose
+  - use to start a set of docker iamges.
+  - does the same thing as `docker-cli`, but as a file, we can reduce the repetition.
+```yaml
+version: '3'
+services:
+  redis-server:
+    image: 'redis'
+  node-app:
+    build: .
+    ports:
+      - "4000:5000"
+```
+  - the docker-compose creates a default network with the above two containers
+  - one container can access the other by using its container name (`redis-server`, `node-app`) as the hostname
+  - so inside the nodejs code, we can access Redis by `redis-server` as the host.
+  - `docker-compose up` -> for start the app
+  - `docker-compose up --build` -> rebuild the images
+  - `docker-compose down` -> stop all the service which started by that docker file
+  - automatic restart
+    - `Status Code = 0`: we exited and everything is OK
+    - `Status Code = 1, 2, 3, etc..`: We exited because of something went wrong!
+  - docker restart policies
+    - `no` - (default) and not start again
+    - `always`
+    - `on-failure` - restart for an error (non 0 exit status codes)
+    - `unless-stopped`
+- Bookmarking
+  - `docker run -p 3000:3000 -it -v /app/node_modules -v $(pwd):/app <con-id>`
+    - if `-v` parameter has `:` it says to map those two paths
+    - if `-v` parameter doesn't have `:` it says to keep it as it is and don't do any mapping. 
+
+- Multi-step build process
+  - build the react app
+  - copy the build folder and open up an nginx server
+```docker
+FROM renovate/yarn as builder
+USER root
+WORKDIR '/app'
+
+COPY package.json .
+COPY yarn.lock .
+RUN yarn
+
+COPY . .
+RUN yarn run build
+
+FROM nginx
+COPY --from=builder /app/build /usr/share/nginx/html
+```
