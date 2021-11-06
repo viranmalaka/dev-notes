@@ -101,6 +101,7 @@ services:
   - `docker run -p 3000:3000 -it -v /app/node_modules -v $(pwd):/app <con-id>`
     - if `-v` parameter has `:` it says to map those two paths
     - if `-v` parameter doesn't have `:` it says to keep it as it is and don't do any mapping. 
+    - in this case, map all the present working dir files to `:/app` folder but ignore the `node_modules` folder. so docker will use the `node_modules` folder inside the container
 
 - Multi-step build process
   - build the react app
